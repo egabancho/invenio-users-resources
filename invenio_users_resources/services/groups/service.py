@@ -49,8 +49,6 @@ class GroupsService(RecordService):
         )
 
         name = data.get("name")
-        if not name:
-            raise ValidationError({"name": [_("Name is required.")]})
 
         datastore = self._datastore()
         role_kwargs = {
