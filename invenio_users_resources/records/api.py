@@ -27,7 +27,7 @@ from invenio_records.systemfields import ModelField
 from invenio_records_resources.records.api import Record
 from invenio_records_resources.records.systemfields import IndexField
 from marshmallow import ValidationError
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import IntegrityError, NoResultFound
 
 from .dumpers import EmailFieldDumperExt
 from .models import DomainAggregateModel, GroupAggregateModel, UserAggregateModel
@@ -137,6 +137,26 @@ def _validate_user_data(user_data):
     existing_username = db.session.query(User).filter_by(username=username).first()
     if existing_username:
         errors["username"] = [_("Username already used by another account.")]
+    if errors:
+        raise ValidationError(errors)
+
+
+def _validate_group_data(group_data):
+    """Validate data for group creation.
+
+    Similar to user validation, this pre-check avoids failing during the
+    unit-of-work commit phase where the context would be lost. We check
+    for an existing role with the same name and raise a validation error
+    early so the service can surface a proper response.
+    """
+    errors = {}
+    name = group_data.get("name") or group_data.get("id")
+    if name:
+        existing = (
+            db.session.query(current_datastore.role_model).filter_by(name=name).first()
+        )
+        if existing:
+            errors["name"] = [_("Role name already used by another group.")]
     if errors:
         raise ValidationError(errors)
 
@@ -381,11 +401,18 @@ class GroupAggregate(BaseAggregate):
     def create(cls, data):
         """Create a new group/role and store it in the database."""
         try:
+            # Validate before attempting DB write to avoid UOW commit failures
+            _validate_group_data(data)
             # Create Role
             role = current_datastore.create_role(**data)
             return cls.from_model(role)
         except ValidationError:
             raise
+        except IntegrityError:
+            # Unique constraint likely violated; re-raise as a field error
+            raise ValidationError(
+                {"name": [_("Role name already used by another group.")]}
+            )
         except Exception as e:
             raise ValidationError(f"Unexpected error creating group: {str(e)}")
 
