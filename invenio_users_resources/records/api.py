@@ -377,6 +377,42 @@ class GroupAggregate(BaseAggregate):
                 return None
             return cls.from_model(role)
 
+    @classmethod
+    def create(cls, data):
+        """Create a new group/role and store it in the database."""
+        try:
+            # Create Role
+            role = current_datastore.create_role(**data)
+            return cls.from_model(role)
+        except ValidationError:
+            raise
+        except Exception as e:
+            raise ValidationError(f"Unexpected error creating group: {str(e)}")
+
+    def update(self, data):
+        """Update the group/role attributes.
+
+        Update is proxied through direct attribute modification.
+        """
+        role = self.model.model_obj
+        if role is None:
+            raise ValueError("Cannot update group without an underlying model.")
+
+        if "description" in data:
+            role.description = data["description"]
+
+        return True
+
+    def delete(self):
+        """Delete the group/role.
+
+        Deletion is proxied through the datastore.
+        """
+        role = self.model.model_obj
+        if role is None:
+            raise ValueError("Cannot delete group without an underlying model.")
+        current_datastore.delete(role)
+
 
 class OrgNameDumperExt(SearchDumperExt):
     """Custom fields dumper extension."""

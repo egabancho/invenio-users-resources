@@ -24,7 +24,6 @@ from invenio_records_resources.services.uow import (
     unit_of_work,
 )
 from marshmallow import ValidationError
-from sqlalchemy.exc import IntegrityError
 
 from ...records.api import GroupAggregate
 from ..results import AvatarResult
@@ -32,11 +31,6 @@ from ..results import AvatarResult
 
 class GroupsService(RecordService):
     """User groups service."""
-
-    @staticmethod
-    def _datastore():
-        """Reuse Flask-Security datastore helpers (same as CLI)."""
-        return current_app.extensions["security"].datastore
 
     @unit_of_work()
     def create(self, identity, data, raise_errors=True, uow=None):
@@ -48,9 +42,8 @@ class GroupsService(RecordService):
             raise_errors=raise_errors,
         )
 
+        # Prepare role data for creation
         name = data.get("name")
-
-        datastore = self._datastore()
         role_kwargs = {
             "id": name,
             "name": name,
@@ -60,14 +53,10 @@ class GroupsService(RecordService):
         if "is_managed" in data:
             role_kwargs["is_managed"] = data["is_managed"]
 
-        try:
-            role = datastore.create_role(**role_kwargs)
-        except IntegrityError as exc:
-            raise ValidationError(
-                {"name": [_("A role with this name already exists.")]}
-            ) from exc
+        # Create group using API
+        group = GroupAggregate.create(role_kwargs)
 
-        group = GroupAggregate.from_model(role)
+        current_app.logger.info(f"Group created: '{group.name}' by user {identity.id}")
 
         self.run_components(
             "create",
@@ -109,20 +98,17 @@ class GroupsService(RecordService):
             raise_errors=raise_errors,
         )
 
+        # Business logic: validate name change
         if "name" in data and data["name"] != group.name:
             raise ValidationError({"name": [_("Renaming roles is not supported.")]})
 
-        datastore = self._datastore()
-        role = datastore.find_role(group.name)
-        if role is None:
-            raise ValidationError({"id": [_("Role could not be loaded.")]})
+        # Update group using API
+        group.update(data)
 
-        if "description" in data:
-            role.description = data["description"]
-        if "is_managed" in data:
-            role.is_managed = data["is_managed"]
+        current_app.logger.info(f"Group updated: '{group.name}' by user {identity.id}")
 
-        updated_group = GroupAggregate.from_model(role)
+        # Create updated group aggregate from the modified role
+        updated_group = GroupAggregate.from_model(group.model.model_obj)
 
         self.run_components(
             "update",
@@ -152,12 +138,10 @@ class GroupsService(RecordService):
             raise PermissionDeniedError()
         self.require_permission(identity, "delete", record=group)
 
-        datastore = self._datastore()
-        role = datastore.find_role(group.name)
-        if role is None:
-            raise ValidationError({"id": [_("Role could not be loaded.")]})
+        current_app.logger.info(f"Group deleted: '{group.name}' by user {identity.id}")
 
-        datastore.delete(role)
+        # Delete group using API
+        group.delete()
 
         self.run_components(
             "delete",
