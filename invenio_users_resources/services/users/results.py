@@ -41,7 +41,7 @@ def _role_names(user):
 def _apply_roles(payload, roles, identity, service):
     """Populate flat/profile role projections."""
     policy = service.config.permission_policy_cls
-    permission = policy(action="read_system_details", identity=identity)
+    permission = policy(action="manage_groups", identity=identity)
     has_permission = permission.allows(identity)
 
     if has_permission:
