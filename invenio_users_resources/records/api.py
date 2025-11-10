@@ -150,13 +150,19 @@ def _validate_group_data(group_data):
     early so the service can surface a proper response.
     """
     errors = {}
-    name = group_data.get("name") or group_data.get("id")
-    if name:
-        existing = (
-            db.session.query(current_datastore.role_model).filter_by(name=name).first()
-        )
-        if existing:
-            errors["name"] = [_("Role name already used by another group.")]
+    group_id = group_data.get("id")
+    name = group_data.get("name")
+
+    def _exists(value):
+        stmt = db.select(db.exists().where(current_datastore.role_model.id == value))
+        return db.session.scalar(stmt)
+
+    if group_id and _exists(group_id):
+        errors["id"] = [_("Role id already used by another group.")]
+
+    if name and _exists(name):
+        errors["name"] = [_("Role name already used by another group.")]
+
     if errors:
         raise ValidationError(errors)
 
