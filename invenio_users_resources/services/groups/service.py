@@ -50,8 +50,6 @@ class GroupsService(RecordService):
         }
         if "description" in data:
             role_kwargs["description"] = data["description"]
-        if "is_managed" in data:
-            role_kwargs["is_managed"] = data["is_managed"]
 
         # Create group using API
         group = GroupAggregate.create(role_kwargs)

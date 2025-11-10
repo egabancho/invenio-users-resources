@@ -75,9 +75,6 @@ def test_groups_search(app, groups, group_service, user_pub, anon_identity):
 
 def test_groups_read(app, groups, group_service, user_pub, anon_identity):
     """Test group read."""
-
-    from invenio_accounts.models import Role
-
     for g in groups:
         # System can retrieve all groups.
         group_service.read(system_identity, g.name).to_dict()
@@ -100,7 +97,6 @@ def test_groups_crud(app, group_service, user_pub):
     payload = {
         "name": "test-role",
         "description": "Initial description",
-        "is_managed": False,
     }
 
     item = group_service.create(system_identity, payload).to_dict()
@@ -114,10 +110,9 @@ def test_groups_crud(app, group_service, user_pub):
     updated = group_service.update(
         system_identity,
         payload["name"],
-        {"description": "Updated", "is_managed": True},
+        {"description": "Updated"},
     ).to_dict()
     assert updated["description"] == "Updated"
-    assert updated["is_managed"] is True
 
     with pytest.raises(ValidationError):
         group_service.update(
