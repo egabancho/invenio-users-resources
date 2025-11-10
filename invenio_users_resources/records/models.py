@@ -183,11 +183,7 @@ class GroupAggregateModel(AggregateMetadata):
         """Extract information from kwargs."""
         super().from_kwargs(kwargs)
         name = kwargs.get("name")
-        current_id = kwargs.get("id")
         if name:
-            self._data["id"] = name
-        if name and current_id and current_id != name:
-            # Legacy index stored the database identifier in id; swap it.
             self._data["id"] = name
 
     @property
