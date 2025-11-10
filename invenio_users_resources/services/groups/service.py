@@ -15,7 +15,7 @@
 from flask import current_app
 from invenio_accounts.models import Role
 from invenio_db import db
-from invenio_i18n import lazy_gettext as _
+from invenio_i18n import gettext as _
 from invenio_records_resources.resources.errors import PermissionDeniedError
 from invenio_records_resources.services import RecordService
 from invenio_records_resources.services.uow import (
