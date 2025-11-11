@@ -54,7 +54,7 @@ class GroupsService(RecordService):
         # Create group using API
         group = GroupAggregate.create(role_kwargs)
 
-        current_app.logger.info(f"Group created: '{group.name}' by user {identity.id}")
+        current_app.logger.debug(f"Group created: '{group.name}' by user {identity.id}")
 
         self.run_components(
             "create",
@@ -103,7 +103,7 @@ class GroupsService(RecordService):
         # Update group using API
         group.update(data)
 
-        current_app.logger.info(f"Group updated: '{group.name}' by user {identity.id}")
+        current_app.logger.debug(f"Group updated: '{group.name}' by user {identity.id}")
 
         # Create updated group aggregate from the modified role
         updated_group = GroupAggregate.from_model(group.model.model_obj)
@@ -136,7 +136,7 @@ class GroupsService(RecordService):
             raise PermissionDeniedError()
         self.require_permission(identity, "delete", record=group)
 
-        current_app.logger.info(f"Group deleted: '{group.name}' by user {identity.id}")
+        current_app.logger.debug(f"Group deleted: '{group.name}' by user {identity.id}")
 
         # Delete group using API
         group.delete()
