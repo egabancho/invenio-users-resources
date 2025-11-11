@@ -406,21 +406,9 @@ class GroupAggregate(BaseAggregate):
     @classmethod
     def create(cls, data):
         """Create a new group/role and store it in the database."""
-        try:
-            # Validate before attempting DB write to avoid UOW commit failures
-            _validate_group_data(data)
-            # Create Role
-            role = current_datastore.create_role(**data)
-            return cls.from_model(role)
-        except ValidationError:
-            raise
-        except IntegrityError:
-            # Unique constraint likely violated; re-raise as a field error
-            raise ValidationError(
-                {"name": [_("Role name already used by another group.")]}
-            )
-        except Exception as e:
-            raise ValidationError(f"Unexpected error creating group: {str(e)}")
+        _validate_group_data(data)
+        role = current_datastore.create_role(**data)
+        return cls.from_model(role)
 
     def update(self, data):
         """Update the group/role attributes.
