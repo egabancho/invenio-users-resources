@@ -141,7 +141,7 @@ def _validate_user_data(user_data):
         raise ValidationError(errors)
 
 
-def _validate_group_data(group_data):
+def _validate_group_data(group_data, update_group=False):
     """Validate data for group creation.
 
     Similar to user validation, this pre-check avoids failing during the
@@ -152,16 +152,30 @@ def _validate_group_data(group_data):
     errors = {}
     group_id = group_data.get("id")
     name = group_data.get("name")
+    description = group_data.get("description")
 
-    def _exists(value):
-        stmt = db.select(db.exists().where(current_datastore.role_model.id == value))
+    def _exists(column, value):
+        stmt = db.select(db.exists().where(column == value))
         return db.session.scalar(stmt)
 
-    if group_id and _exists(group_id):
-        errors["id"] = [_("Role id already used by another group.")]
+    if not update_group:
+        checks = [
+            ("id", group_id, current_datastore.role_model.id),
+            ("name", name, current_datastore.role_model.name),
+        ]
+        for field, value, column in checks:
+            if value and str(value).strip() and _exists(column, value):
+                errors[field] = [
+                    _("Role {field} already used by another group.").format(field=field)
+                ]
 
-    if name and _exists(name):
-        errors["name"] = [_("Role name already used by another group.")]
+    if "description" in group_data:
+        description = description.strip()
+        group_data["description"] = description
+        if not isinstance(description, str) or len(description) > 255:
+            errors.setdefault("description", []).append(
+                _("Role description must be a string up to 255 characters.")
+            )
 
     if errors:
         raise ValidationError(errors)
@@ -419,10 +433,11 @@ class GroupAggregate(BaseAggregate):
         if role is None:
             raise ValueError("Cannot update group without an underlying model.")
 
+        _validate_group_data(data, update_group=True)
         if "description" in data:
             role.description = data["description"]
-
-        return True
+        role = current_datastore.update_role(role)
+        return self.from_model(role)
 
     def delete(self):
         """Delete the group/role.
