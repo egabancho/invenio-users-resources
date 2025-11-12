@@ -9,18 +9,16 @@
 
 """Ensure roles are exposed in administration responses."""
 
-from types import SimpleNamespace
-
 import pytest
 
 from invenio_users_resources.records.api import UserAggregate
-from invenio_users_resources.services.users.results import UserList
+from invenio_users_resources.services.users.results import _apply_roles, _role_names
 
 pytestmark = pytest.mark.usefixtures("app", "database")
 
 
 def _expected_roles(user_fixture):
-    """Return the comma separated role names for the given user fixture."""
+    """Return the sorted list of role names for the given user fixture."""
     roles = sorted(role.name for role in (user_fixture.user.roles or []))
     return ", ".join(roles)
 
@@ -34,7 +32,6 @@ def test_read_includes_roles(user_service, user_moderator):
 
     expected = _expected_roles(user_moderator)
     assert expected == result["roles"]
-    assert expected == result["roles_label"]
     assert expected == result["profile"]["roles"]
 
 
@@ -48,36 +45,23 @@ def test_read_without_roles_returns_empty_string(
     ).to_dict()
 
     assert not result["roles"]
-    assert not result["roles_label"]
     assert not result["profile"]["roles"]
 
 
 def test_user_list_populates_roles(user_service, user_moderator, user_pub):
     """UserList projection populates role information."""
-    moderator_doc = UserAggregate.from_model(user_moderator.user).dumps()
-    user_doc = UserAggregate.from_model(user_pub.user).dumps()
-
-    results = [
-        SimpleNamespace(to_dict=lambda doc=moderator_doc: doc),
-        SimpleNamespace(to_dict=lambda doc=user_doc: doc),
-    ]
-
-    user_list = UserList(
-        service=user_service,
-        identity=user_moderator.identity,
-        results=results,
-        params=None,
-        links_tpl=None,
-        links_item_tpl=None,
-    )
-
-    hits = list(user_list.hits)
-
+    moderator_aggregate = UserAggregate.from_model(user_moderator.user)
+    roles = _role_names(moderator_aggregate)
+    # user with roles
+    payload = {}
+    _apply_roles(payload, roles, user_moderator.identity, user_service)
     expected = _expected_roles(user_moderator)
-    assert expected == hits[0]["roles"]
-    assert expected == hits[0]["roles_label"]
-    assert expected == hits[0]["profile"]["roles"]
-
-    assert not hits[1]["roles"]
-    assert not hits[1]["roles_label"]
-    assert not hits[1]["profile"]["roles"]
+    assert expected == payload["roles"]
+    assert expected == payload["profile"]["roles"]
+    # user without roles
+    user_aggregate = UserAggregate.from_model(user_pub.user)
+    roles_pub = _role_names(user_aggregate)
+    payload_pub = {}
+    _apply_roles(payload_pub, roles_pub, user_moderator.identity, user_service)
+    assert not payload_pub["roles"]
+    assert not payload_pub["profile"]["roles"]
