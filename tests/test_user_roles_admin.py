@@ -33,9 +33,9 @@ def test_read_includes_roles(user_service, user_moderator):
     ).to_dict()
 
     expected = _expected_roles(user_moderator)
-    assert result["roles"] == expected
-    assert result["roles_label"] == expected
-    assert result["profile"]["roles"] == expected
+    assert expected == result["roles"]
+    assert expected == result["roles_label"]
+    assert expected == result["profile"]["roles"]
 
 
 def test_read_without_roles_returns_empty_string(
@@ -47,9 +47,9 @@ def test_read_without_roles_returns_empty_string(
         user_pub.user.id,
     ).to_dict()
 
-    assert result["roles"] == ""
-    assert result["roles_label"] == ""
-    assert result["profile"]["roles"] == ""
+    assert not result["roles"]
+    assert not result["roles_label"]
+    assert not result["profile"]["roles"]
 
 
 def test_user_list_populates_roles(user_service, user_moderator, user_pub):
@@ -74,10 +74,10 @@ def test_user_list_populates_roles(user_service, user_moderator, user_pub):
     hits = list(user_list.hits)
 
     expected = _expected_roles(user_moderator)
-    assert hits[0]["roles"] == expected
-    assert hits[0]["roles_label"] == expected
-    assert hits[0]["profile"]["roles"] == expected
+    assert expected == hits[0]["roles"]
+    assert expected == hits[0]["roles_label"]
+    assert expected == hits[0]["profile"]["roles"]
 
-    assert hits[1]["roles"] == ""
-    assert hits[1]["roles_label"] == ""
-    assert hits[1]["profile"]["roles"] == ""
+    assert not hits[1]["roles"]
+    assert not hits[1]["roles_label"]
+    assert not hits[1]["profile"]["roles"]
