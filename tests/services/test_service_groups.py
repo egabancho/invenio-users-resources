@@ -10,6 +10,7 @@
 """User service tests."""
 
 from operator import attrgetter
+
 import pytest
 from invenio_access.permissions import system_identity
 from invenio_records_resources.resources.errors import PermissionDeniedError

@@ -152,7 +152,6 @@ def _validate_group_data(group_data, update_group=False):
     errors = {}
     group_id = group_data.get("id")
     name = group_data.get("name")
-    description = group_data.get("description")
 
     def _exists(column, value):
         stmt = db.select(db.exists().where(column == value))
@@ -168,15 +167,6 @@ def _validate_group_data(group_data, update_group=False):
                 errors[field] = [
                     _("Role {field} already used by another group.").format(field=field)
                 ]
-
-    if "description" in group_data:
-        description = description.strip()
-        group_data["description"] = description
-        if not isinstance(description, str) or len(description) > 255:
-            errors.setdefault("description", []).append(
-                _("Role description must be a string up to 255 characters.")
-            )
-
     if errors:
         raise ValidationError(errors)
 
