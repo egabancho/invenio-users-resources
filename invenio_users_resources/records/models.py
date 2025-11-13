@@ -173,19 +173,6 @@ class GroupAggregateModel(AggregateMetadata):
     _set_properties = []
     """Properties of this object that can be set."""
 
-    def from_model(self, role):
-        """Extract information from a role object."""
-        super().from_model(role)
-        # Explicitly Use the role name as the public identifier
-        self._data["id"] = getattr(role, "name", None)
-
-    def from_kwargs(self, kwargs):
-        """Extract information from kwargs."""
-        super().from_kwargs(kwargs)
-        name = kwargs.get("name")
-        if name:
-            self._data["id"] = name
-
     @property
     def model_obj(self):
         """The actual model object behind this mock model."""
