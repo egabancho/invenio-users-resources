@@ -176,15 +176,10 @@ class GroupAggregateModel(AggregateMetadata):
     @property
     def model_obj(self):
         """The actual model object behind this mock model."""
-        if self._model_obj is not None:
-            return self._model_obj
-
-        name = self.data.get("id")
-        if name is None:
-            return None
-
-        with db.session.no_autoflush:
-            self._model_obj = current_datastore.find_role(name)
+        if self._model_obj is None:
+            id_ = self.data.get("id")
+            with db.session.no_autoflush:
+                self._model_obj = current_datastore.find_role_by_id(id_)
         return self._model_obj
 
 
