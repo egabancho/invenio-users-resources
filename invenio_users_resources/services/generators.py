@@ -12,15 +12,35 @@
 
 """Permission generators for users and groups."""
 
+from abc import abstractmethod
+
 from flask import current_app
-from invenio_access import Permission, any_user
+from flask_principal import UserNeed
+from invenio_access import (
+    ActionRoles,
+    ActionUsers,
+    Permission,
+    any_user,
+    superuser_access,
+)
+from invenio_access.models import Role
+from invenio_access.utils import get_identity
+from invenio_db import db
 from invenio_records.dictutils import dict_lookup
 from invenio_records_permissions.generators import (
     ConditionalGenerator,
     Generator,
-    UserNeed,
 )
 from invenio_search.engine import dsl
+from sqlalchemy import exists
+
+
+class DenyAll(Generator):
+    """Generator that denies all access by excluding any_user."""
+
+    def excludes(self, **kwargs):
+        """Exclude all users."""
+        return [any_user]
 
 
 class IfPublic(ConditionalGenerator):
@@ -160,3 +180,94 @@ class GroupsEnabled(Generator):
             ):
                 return [any_user]
         return []
+
+
+class AdministrationAction(Generator):
+    def __init__(self, action):
+        self.action = action
+
+    @abstractmethod
+    def _records_to_exclude(self): ...
+
+    def needs(self, **kwargs):
+        """Enabling Needs."""
+        return [self.action]
+
+    def query_filter(self, identity=None, **kwargs):
+        """Not implemented at this level."""
+        permission = Permission(self.action)
+        if identity and permission.allows(identity):
+            exclude_ids = self._records_to_exclude()
+            return dsl.Q("match_all") & ~dsl.Q("terms", **{"id": exclude_ids})
+        return []
+
+
+class AdministrationUserAction(AdministrationAction):
+    def _records_to_exclude(self):
+        """."""
+        return list(
+            # Get users that belong to a super admin role
+            {
+                user.id
+                for ac in ActionRoles.query_by_action(superuser_access).all()
+                for user in ac.role.users
+            }
+            # Get users that have the super admin action atached to them
+            | {au.user_id for au in ActionUsers.query_by_action(superuser_access).all()}
+        )
+
+
+class AdministrationGroupAction(AdministrationAction):
+    def _records_to_exclude(self):
+        """."""
+        return list(
+            {ac.role_id for ac in ActionRoles.query_by_action(superuser_access).all()}
+        )
+
+
+class IfSuperAdmin(ConditionalGenerator):
+    """."""
+
+    def _is_user_superadmin(self, identity):
+        """Check if the current identity "provides" super admin "needs"."""
+        if not identity:
+            return False
+        permission = Permission(superuser_access)
+        return permission.allows(identity)
+
+    def _is_role_superadmin(self, record):
+        """Check if a role has superadmin access."""
+        return db.session.query(
+            exists(
+                ActionRoles.query_by_action(superuser_access)
+                .filter_by(role_id=record.id)
+                .statement
+            )
+        ).scalar()
+
+    def _is_record_superadmin(self, record):
+        """Check if a record represents a superadmin role or user."""
+        if isinstance(record.model.model_obj, Role):
+            return self._is_role_superadmin(record)
+        else:
+            record_identity = get_identity(record.model.model_obj)
+            return self._is_user_superadmin(record_identity)
+
+    def _condition(self, record=None, identity=None, **kwargs):
+        """Check if user or record has superadmin access."""
+        if identity and self._is_user_superadmin(identity):
+            return True
+
+        if record is None:
+            return False
+
+        # Check if the record represents a superadmin user or role
+        return self._is_record_superadmin(record)
+
+    def query_filter(self, identity=None, **kwargs):
+        """."""
+        is_user_super = self._is_user_superadmin(identity)
+        if is_user_super:
+            return self._make_query(self.then_, idenity=identity, **kwargs)
+
+        return self._make_query(self.else_, identity=identity, **kwargs)

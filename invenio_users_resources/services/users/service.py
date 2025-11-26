@@ -39,6 +39,11 @@ from .lock import ModerationMutex
 class UsersService(RecordService):
     """Users service."""
 
+    def check_permission(self, identity, action_name, **kwargs):
+        """Check a permission against the identity."""
+        kwargs["identity"] = identity
+        return self.permission_policy(action_name, **kwargs).allows(identity)
+
     @property
     def user_cls(self):
         """Alias for record_cls."""

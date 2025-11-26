@@ -85,9 +85,9 @@ def test_groups_search(
     assert res["hits"]["total"] == len(groups)
 
     # FIXME: uncomment when permissions are fixed
-    # # User Admin can see everything but admin groups
-    # res = group_service.search(user_moderator.identity).to_dict()
-    # assert res["hits"]["total"] == len(groups) - 1  # There is one superadmin group
+    # User Admin can see everything but admin groups
+    res = group_service.search(user_moderator.identity).to_dict()
+    assert res["hits"]["total"] == len(groups) - 1  # There is one superadmin group
 
     # Anon does not have permission to search
     with pytest.raises(PermissionDeniedError):
@@ -113,7 +113,7 @@ def test_groups_read(
         else:
             group_service.read(user_pub.identity, g.id).to_dict()
 
-        # Anon does not have permission to search
+        # Anon does not have permission to read
         with pytest.raises(PermissionDeniedError):
             group_service.read(anon_identity, g.id).to_dict()
 
@@ -123,15 +123,14 @@ def test_groups_read(
     group_service.read(system_identity, superadmin_group.id).to_dict()
     # Super user
     group_service.read(user_admin.identity, superadmin_group.id)
-    # FIXME: uncomment when permissions are fixed
-    # # Authenicated user
-    # with pytest.raises(PermissionDeniedError):
-    #     group_service.read(user_pub.identity, superadmin_group.id)
-    # # User moderator
-    # with pytest.raises(PermissionDeniedError):
-    #     group_service.read(user_moderator.identity, superadmin_group.id)
-    # with pytest.raises(PermissionDeniedError):
-    #     group_service.read(anon_identity, superadmin_group.id)
+    # Authenicated user
+    with pytest.raises(PermissionDeniedError):
+        group_service.read(user_pub.identity, superadmin_group.id)
+    # User moderator
+    with pytest.raises(PermissionDeniedError):
+        group_service.read(user_moderator.identity, superadmin_group.id)
+    with pytest.raises(PermissionDeniedError):
+        group_service.read(anon_identity, superadmin_group.id)
 
 
 def test_groups_crud(app, group_service, user_pub):
@@ -229,3 +228,45 @@ def test_groups_recreate_same_name(app, group_service):
     assert payload["name"] == recreated["name"]
 
     assert group_service.delete(system_identity, recreated["id"])
+
+def test_groups_update_requires_managed(app, group_service, not_managed_group):
+    """Unmanaged groups can only be updated by system process, not by regular admins."""
+
+    # System process CAN update unmanaged groups
+    result = group_service.update(
+        system_identity,
+        not_managed_group.id,
+        {"description": "updated by system"},
+    )
+    assert result["description"] == "updated by system"
+
+
+def test_groups_delete_requires_managed(app, group_service, not_managed_group):
+    """Unmanaged groups can only be deleted by system process, not by regular admins."""
+
+    # System process CAN delete unmanaged groups
+    result = group_service.delete(system_identity, not_managed_group.id)
+    assert result is True
+
+def test_admin_moderator_cannot_edit_unmanaged_groups(
+    app, group_service, not_managed_group, user_moderator
+):
+    """Administration-moderation users cannot update unmanaged groups."""
+
+    # Admin moderator CANNOT update unmanaged groups
+    with pytest.raises(PermissionDeniedError):
+        group_service.update(
+            user_moderator.identity,
+            not_managed_group.id,
+            {"description": "attempted update by admin"},
+        )
+
+
+def test_admin_moderator_cannot_delete_unmanaged_groups(
+    app, group_service, not_managed_group, user_moderator
+):
+    """Administration-moderation users cannot delete unmanaged groups."""
+
+    # Admin moderator CANNOT delete unmanaged groups
+    with pytest.raises(PermissionDeniedError):
+        group_service.delete(user_moderator.identity, not_managed_group.id)
